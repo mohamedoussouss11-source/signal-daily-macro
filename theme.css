@@ -32,12 +32,12 @@ html[data-surface="forest"]{--bg:#0b1a16;--surface:#12261f;--surface2:#183127;--
 .stats-range-bar .over{background:var(--danger)}
 .stats-range-bar .under{background:var(--muted)}
 .theme-section,.surface-section{border:1px solid var(--line);padding:16px;margin:0 0 13px}
-.surface-section{margin-bottom:25px}
+.surface-section{margin-bottom:0}
 .theme-heading{color:var(--text);font:500 12px var(--mono);letter-spacing:.09em;margin:0 0 12px}
 .theme-options,.surface-options{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
-.theme-swatch,.surface-choice{display:flex;flex-direction:column;align-items:center;gap:8px;min-height:68px;padding:9px 4px 7px;border:1px solid var(--line);font:11px var(--mono);letter-spacing:.03em}
-.theme-swatch[aria-pressed="true"],.surface-choice[aria-pressed="true"]{border-color:var(--acid);box-shadow:inset 0 0 0 1px var(--acid)}
-.theme-dot{width:26px;height:26px;border-radius:50%;background:var(--swatch);display:block}
+.theme-swatch,.surface-choice{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;min-height:84px;padding:10px 4px;border:1px solid var(--line);font:500 12px var(--mono);letter-spacing:.04em}
+.theme-swatch[aria-pressed="true"],.surface-choice[aria-pressed="true"]{border-color:var(--acid);box-shadow:inset 0 0 0 1px var(--acid);background:color-mix(in srgb,var(--acid) 9%,var(--input))}
+.theme-dot{width:38px;height:38px;border-radius:50%;background:var(--swatch);display:block;box-shadow:0 0 0 1px var(--line)}
 .theme-swatch[aria-pressed="true"] .theme-dot,.surface-choice[aria-pressed="true"] .surface-preview{outline:2px solid var(--acid);outline-offset:3px}
-.surface-preview{width:36px;height:26px;display:block;background:var(--preview);border:1px solid var(--preview-line)}
+.surface-preview{width:38px;height:38px;border-radius:50%;display:block;background:var(--preview);border:2px solid var(--preview-line);box-shadow:0 0 0 1px var(--line)}
 @media(max-width:430px){.theme-options,.surface-options{grid-template-columns:repeat(3,minmax(0,1fr))}}
