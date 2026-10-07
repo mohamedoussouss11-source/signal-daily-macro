@@ -5,17 +5,21 @@
   const modeNames = { bulk: 'BULK', cut: 'CUT', maintain: 'MAINTAIN' };
   const modeNotes = { bulk: '+ SURPLUS TARGET', cut: '− DEFICIT TARGET', maintain: '= MAINTENANCE TARGET' };
   const macroNames = { protein: 'PROTEIN', carbs: 'CARBS', fat: 'FAT' };
-  const macroColors = { protein: '#67d9e8', carbs: '#f5bb66', fat: '#f27985' };
   const themes = {
-    teal: '#56d8c9',
-    pink: '#f48abb',
-    blue: '#78baff',
-    purple: '#b9a0fa',
-    orange: '#ffac73'
+    teal: { dark: '#56d8c9', light: '#00786e' },
+    pink: { dark: '#f48abb', light: '#ad2b6a' },
+    blue: { dark: '#78baff', light: '#245da8' },
+    purple: { dark: '#b9a0fa', light: '#6d3eb6' },
+    orange: { dark: '#ffac73', light: '#a64c0c' },
+    lime: { dark: '#c8e67a', light: '#5c7400' },
+    red: { dark: '#ff8585', light: '#ad3542' },
+    gold: { dark: '#f1d468', light: '#7f6200' }
   };
+  const surfaces = ['dark', 'white', 'navy', 'plum', 'forest'];
   const defaults = {
     version: 1,
     theme: 'teal',
+    surface: 'dark',
     lastMode: 'maintain',
     configuredModes: { bulk: false, cut: false, maintain: false },
     targets: {
@@ -59,7 +63,8 @@
   let statsPeriod = 'month';
   let quickRequest = null;
 
-  function themeColor() { return themes[data.theme] || themes.teal; }
+  function themeColor() { return (themes[data.theme] || themes.teal)[data.surface === 'white' ? 'light' : 'dark']; }
+  function macroColor(key) { return getComputedStyle(document.documentElement).getPropertyValue(`--${key}`).trim(); }
 
   function contrastInk(hex) {
     const channels = [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16) / 255);
@@ -71,6 +76,8 @@
 
   function applyTheme() {
     if (!(data.theme in themes)) data.theme = 'teal';
+    if (!surfaces.includes(data.surface)) data.surface = 'dark';
+    document.documentElement.dataset.surface = data.surface;
     const color = themeColor();
     document.documentElement.style.setProperty('--acid', color);
     document.documentElement.style.setProperty('--accent-ink', contrastInk(color));
@@ -78,11 +85,20 @@
       const selected = button.dataset.theme === data.theme;
       button.setAttribute('aria-pressed', String(selected));
     });
+    $$('[data-surface]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.surface === data.surface)));
   }
 
   function setTheme(theme) {
     if (!(theme in themes)) return;
     data.theme = theme;
+    applyTheme();
+    save();
+    render();
+  }
+
+  function setSurface(surface) {
+    if (!surfaces.includes(surface)) return;
+    data.surface = surface;
     applyTheme();
     save();
     render();
@@ -142,7 +158,7 @@
     $('#calories-remaining').classList.toggle('over', over);
     const pct = s.budget > 0 ? Math.round(s.eaten.calories / s.budget * 100) : 0;
     $('#calorie-percent').textContent = `${pct}% OF BUDGET USED`;
-    $('#calorie-ring').style.background = `conic-gradient(${over ? '#ff7078' : themeColor()} ${Math.min(100, pct)}%, #303b39 ${Math.min(100, pct)}%)`;
+    $('#calorie-ring').style.background = `conic-gradient(${over ? macroColor('danger') : themeColor()} ${Math.min(100, pct)}%, ${macroColor('ring-track')} ${Math.min(100, pct)}%)`;
 
     $('#macro-list').innerHTML = ['protein', 'carbs', 'fat'].map(key => {
       const value = Math.round(s.eaten[key] * 10) / 10;
@@ -150,7 +166,7 @@
       const left = Math.round((target - value) * 10) / 10;
       const excess = left < 0;
       const width = target > 0 ? Math.min(100, value / target * 100) : value > 0 ? 100 : 0;
-      return `<div class="macro-item"><div class="macro-top"><span class="macro-name" style="color:${macroColors[key]}">${macroNames[key]}</span><span class="macro-value">${fmt(value)} <small>/ ${fmt(target)} G</small></span></div><div class="bar-track" role="progressbar" aria-label="${macroNames[key]}" aria-valuenow="${value}" aria-valuemin="0" aria-valuemax="${target}"><div class="bar-fill" style="width:${width}%;background:${excess ? '#ff7078' : macroColors[key]}"></div></div><div class="macro-bottom"><span>${target > 0 ? Math.round(value / target * 100) : 0}% OF TARGET</span><span class="${excess ? 'over' : ''}">${fmt(Math.abs(left))} G ${excess ? 'OVER' : 'LEFT'}</span></div></div>`;
+      return `<div class="macro-item"><div class="macro-top"><span class="macro-name" style="color:${macroColor(key)}">${macroNames[key]}</span><span class="macro-value">${fmt(value)} <small>/ ${fmt(target)} G</small></span></div><div class="bar-track" role="progressbar" aria-label="${macroNames[key]}" aria-valuenow="${value}" aria-valuemin="0" aria-valuemax="${target}"><div class="bar-fill" style="width:${width}%;background:${excess ? macroColor('danger') : macroColor(key)}"></div></div><div class="macro-bottom"><span>${target > 0 ? Math.round(value / target * 100) : 0}% OF TARGET</span><span class="${excess ? 'over' : ''}">${fmt(Math.abs(left))} G ${excess ? 'OVER' : 'LEFT'}</span></div></div>`;
     }).join('');
 
     $('#food-list').innerHTML = s.record.food.length ? s.record.food.map(entry => `<div class="entry-row"><div class="entry-icon" aria-hidden="true">＋</div><div class="entry-main"><div class="entry-name" title="${escapeHtml(entry.name)}">${escapeHtml(entry.name)}</div><div class="entry-meta">P ${fmt(entry.protein)} · C ${fmt(entry.carbs)} · F ${fmt(entry.fat)}${entry.source === 'quick' ? ' · QUICK LOG' : entry.overridden ? ' · MANUAL KCAL' : ''}</div></div><div class="entry-calories">${fmt(entry.calories)} <small>KCAL</small></div><button class="remove-button" type="button" data-remove-food="${escapeHtml(entry.id)}" aria-label="Remove ${escapeHtml(entry.name)}">×</button></div>`).join('') : '<div class="empty-state">NO FOOD LOGGED FOR THIS DAY.</div>';
@@ -177,7 +193,7 @@
       if (!point.logged) return '';
       const value = point[key];
       const target = point[targetKey];
-      const fill = key === 'calories' ? value > target * 1.05 ? '#ff7078' : value < target * .95 ? '#87989b' : color : color;
+      const fill = key === 'calories' ? value > target * 1.05 ? macroColor('danger') : value < target * .95 ? macroColor('muted') : color : color;
       const barY = y(value);
       return `<rect x="${x(index) - barWidth / 2}" y="${barY}" width="${barWidth}" height="${Math.max(1, bottom - barY)}" fill="${fill}"><title>${point.date}: ${fmt(value)} ${unit} / ${fmt(target)} target</title></rect>`;
     }).join('');
@@ -188,7 +204,7 @@
       const connector = previous?.logged ? `<line class="target" x1="${x(index - 1)}" y1="${y(previous[targetKey])}" x2="${currentX}" y2="${currentY}"/>` : '';
       return `${connector}<line class="target" x1="${currentX - barWidth / 2}" y1="${currentY}" x2="${currentX + barWidth / 2}" y2="${currentY}"/>`;
     }).join('');
-    return `<div class="stats-chart"><div class="stats-chart-head"><span class="stats-chart-title">${title}</span><span class="stats-chart-unit">${unit} / LOGGED DAY</span></div><div class="stats-chart-legend"><span><i style="background:${color}"></i> EATEN</span><span><i class="line"></i> TARGET</span>${key === 'calories' ? '<span><i style="background:#ff7078"></i> OVER</span>' : ''}</div><svg class="stats-chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${title} daily trend and target from ${statsDate(stats.start)} to ${statsDate(stats.end)}">${grid}${bars}${targetLines}</svg><div class="stats-chart-dates"><span>${statsDate(stats.start)}</span><span>${statsDate(stats.end)}</span></div></div>`;
+    return `<div class="stats-chart"><div class="stats-chart-head"><span class="stats-chart-title">${title}</span><span class="stats-chart-unit">${unit} / LOGGED DAY</span></div><div class="stats-chart-legend"><span><i style="background:${color}"></i> EATEN</span><span><i class="line"></i> TARGET</span>${key === 'calories' ? `<span><i style="background:${macroColor('danger')}"></i> OVER</span>` : ''}</div><svg class="stats-chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${title} daily trend and target from ${statsDate(stats.start)} to ${statsDate(stats.end)}">${grid}${bars}${targetLines}</svg><div class="stats-chart-dates"><span>${statsDate(stats.start)}</span><span>${statsDate(stats.end)}</span></div></div>`;
   }
 
   function renderStatistics() {
@@ -203,7 +219,7 @@
       cell('TOTAL CARDIO TIME', fmt(stats.cardioMinutes), 'MIN', 'IN THIS PERIOD'),
       cell('CARDIO CALORIES', fmt(stats.cardioCalories), 'KCAL', 'IN THIS PERIOD')
     ].join('');
-    $('#stats-macros').innerHTML = ['protein', 'carbs', 'fat'].map(key => `<div class="stats-macro"><div class="stats-macro-name" style="color:${macroColors[key]}">AVG ${macroNames[key]}</div><div class="stats-macro-line"><strong>${average(stats.average[key])}</strong><span>G / LOGGED DAY</span></div><div class="stats-macro-pct">${stats.averageTargetPct[key] === null ? '—' : `${Math.round(stats.averageTargetPct[key])}%`} OF ${macroNames[key]} TARGET ON AVERAGE</div></div>`).join('');
+    $('#stats-macros').innerHTML = ['protein', 'carbs', 'fat'].map(key => `<div class="stats-macro"><div class="stats-macro-name" style="color:${macroColor(key)}">AVG ${macroNames[key]}</div><div class="stats-macro-line"><strong>${average(stats.average[key])}</strong><span>G / LOGGED DAY</span></div><div class="stats-macro-pct">${stats.averageTargetPct[key] === null ? '—' : `${Math.round(stats.averageTargetPct[key])}%`} OF ${macroNames[key]} TARGET ON AVERAGE</div></div>`).join('');
     const counts = stats.rangeCounts;
     const countShare = count => stats.loggedDays ? count / stats.loggedDays * 100 : 0;
     $('#stats-range').innerHTML = `<div class="stats-detail-title">CALORIE TARGET RANGE <span>· ±5%</span></div><div class="stats-range-row"><div class="stats-range-count within"><strong>${counts.within}</strong><span>WITHIN</span></div><div class="stats-range-count over"><strong>${counts.over}</strong><span>OVER</span></div><div class="stats-range-count under"><strong>${counts.under}</strong><span>UNDER</span></div></div><div class="stats-range-bar" aria-label="${counts.within} within, ${counts.over} over, ${counts.under} under"><i class="within" style="width:${countShare(counts.within)}%"></i><i class="over" style="width:${countShare(counts.over)}%"></i><i class="under" style="width:${countShare(counts.under)}%"></i></div>`;
@@ -212,7 +228,7 @@
     const modeMessage = !spans.length ? '<div class="stats-mode-single">NO MODE HISTORY IN THIS PERIOD.</div>' : mixed ? '<div class="stats-mode-warning">MODES CHANGED · AVERAGES COMBINE DIFFERENT TARGETS.</div>' : '<div class="stats-mode-single">ONE RECORDED MODE IN THIS PERIOD.</div>';
     const chips = spans.map(span => `<span class="stats-mode-chip"><b>${modeNames[span.mode]}</b> · ${statsDate(span.start)}${span.end === span.start ? '' : ` — ${statsDate(span.end)}`}</span>`).join('');
     $('#stats-modes').innerHTML = `<div class="stats-detail-title">RECORDED MODE RANGES</div>${modeMessage}<div class="stats-mode-list">${chips}</div>`;
-    $('#stats-charts').innerHTML = stats.loggedDays < 5 ? `<div class="stats-chart-empty">LOG A FEW MORE DAYS TO SEE TRENDS · ${stats.loggedDays}/5 LOGGED DAYS</div>` : trendChart(stats, 'calories', 'DAILY CALORIES', 'KCAL', themeColor()) + trendChart(stats, 'protein', 'DAILY PROTEIN', 'G', macroColors.protein);
+    $('#stats-charts').innerHTML = stats.loggedDays < 5 ? `<div class="stats-chart-empty">LOG A FEW MORE DAYS TO SEE TRENDS · ${stats.loggedDays}/5 LOGGED DAYS</div>` : trendChart(stats, 'calories', 'DAILY CALORIES', 'KCAL', themeColor()) + trendChart(stats, 'protein', 'DAILY PROTEIN', 'G', macroColor('protein'));
   }
 
   function setMode(mode) {
@@ -445,6 +461,7 @@
   $('#today-button').addEventListener('click', () => { selectedDate = isoDate(new Date()); render(); });
   $$('[data-mode]').forEach(button => button.addEventListener('click', () => setMode(button.dataset.mode)));
   $$('[data-theme]').forEach(button => button.addEventListener('click', () => setTheme(button.dataset.theme)));
+  $$('[data-surface]').forEach(button => button.addEventListener('click', () => setSurface(button.dataset.surface)));
   $('#settings-open').addEventListener('click', () => { loadSettingsMode(currentMode()); showDialog('settings-dialog'); });
   $('#add-food').addEventListener('click', () => { resetQuickLog(); showDialog('food-dialog'); });
   $('#add-cardio').addEventListener('click', () => { $('#cardio-form').reset(); $('#cardio-error').textContent = ''; showDialog('cardio-dialog'); });
