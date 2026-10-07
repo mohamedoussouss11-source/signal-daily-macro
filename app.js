@@ -6,8 +6,16 @@
   const modeNotes = { bulk: '+ SURPLUS TARGET', cut: '− DEFICIT TARGET', maintain: '= MAINTENANCE TARGET' };
   const macroNames = { protein: 'PROTEIN', carbs: 'CARBS', fat: 'FAT' };
   const macroColors = { protein: '#67d9e8', carbs: '#f5bb66', fat: '#f27985' };
+  const themes = {
+    teal: '#56d8c9',
+    pink: '#f48abb',
+    blue: '#78baff',
+    purple: '#b9a0fa',
+    orange: '#ffac73'
+  };
   const defaults = {
     version: 1,
+    theme: 'teal',
     lastMode: 'maintain',
     configuredModes: { bulk: false, cut: false, maintain: false },
     targets: {
@@ -50,6 +58,35 @@
   let settingsMode = data.lastMode in modeNames ? data.lastMode : 'maintain';
   let statsPeriod = 'month';
   let quickRequest = null;
+
+  function themeColor() { return themes[data.theme] || themes.teal; }
+
+  function contrastInk(hex) {
+    const channels = [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16) / 255);
+    const linear = channels.map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4);
+    const luminance = linear[0] * .2126 + linear[1] * .7152 + linear[2] * .0722;
+    const dark = .006;
+    return (luminance + .05) / (dark + .05) >= 1.05 / (luminance + .05) ? '#0b1418' : '#ffffff';
+  }
+
+  function applyTheme() {
+    if (!(data.theme in themes)) data.theme = 'teal';
+    const color = themeColor();
+    document.documentElement.style.setProperty('--acid', color);
+    document.documentElement.style.setProperty('--accent-ink', contrastInk(color));
+    $$('[data-theme]').forEach(button => {
+      const selected = button.dataset.theme === data.theme;
+      button.setAttribute('aria-pressed', String(selected));
+    });
+  }
+
+  function setTheme(theme) {
+    if (!(theme in themes)) return;
+    data.theme = theme;
+    applyTheme();
+    save();
+    render();
+  }
 
   function save() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
@@ -105,7 +142,7 @@
     $('#calories-remaining').classList.toggle('over', over);
     const pct = s.budget > 0 ? Math.round(s.eaten.calories / s.budget * 100) : 0;
     $('#calorie-percent').textContent = `${pct}% OF BUDGET USED`;
-    $('#calorie-ring').style.background = `conic-gradient(${over ? '#ff7078' : '#d6f75d'} ${Math.min(100, pct)}%, #303b39 ${Math.min(100, pct)}%)`;
+    $('#calorie-ring').style.background = `conic-gradient(${over ? '#ff7078' : themeColor()} ${Math.min(100, pct)}%, #303b39 ${Math.min(100, pct)}%)`;
 
     $('#macro-list').innerHTML = ['protein', 'carbs', 'fat'].map(key => {
       const value = Math.round(s.eaten[key] * 10) / 10;
@@ -175,7 +212,7 @@
     const modeMessage = !spans.length ? '<div class="stats-mode-single">NO MODE HISTORY IN THIS PERIOD.</div>' : mixed ? '<div class="stats-mode-warning">MODES CHANGED · AVERAGES COMBINE DIFFERENT TARGETS.</div>' : '<div class="stats-mode-single">ONE RECORDED MODE IN THIS PERIOD.</div>';
     const chips = spans.map(span => `<span class="stats-mode-chip"><b>${modeNames[span.mode]}</b> · ${statsDate(span.start)}${span.end === span.start ? '' : ` — ${statsDate(span.end)}`}</span>`).join('');
     $('#stats-modes').innerHTML = `<div class="stats-detail-title">RECORDED MODE RANGES</div>${modeMessage}<div class="stats-mode-list">${chips}</div>`;
-    $('#stats-charts').innerHTML = stats.loggedDays < 5 ? `<div class="stats-chart-empty">LOG A FEW MORE DAYS TO SEE TRENDS · ${stats.loggedDays}/5 LOGGED DAYS</div>` : trendChart(stats, 'calories', 'DAILY CALORIES', 'KCAL', '#d6f75d') + trendChart(stats, 'protein', 'DAILY PROTEIN', 'G', macroColors.protein);
+    $('#stats-charts').innerHTML = stats.loggedDays < 5 ? `<div class="stats-chart-empty">LOG A FEW MORE DAYS TO SEE TRENDS · ${stats.loggedDays}/5 LOGGED DAYS</div>` : trendChart(stats, 'calories', 'DAILY CALORIES', 'KCAL', themeColor()) + trendChart(stats, 'protein', 'DAILY PROTEIN', 'G', macroColors.protein);
   }
 
   function setMode(mode) {
@@ -407,6 +444,7 @@
   $('#next-day').addEventListener('click', () => { const d = fromIso(selectedDate); d.setDate(d.getDate() + 1); selectedDate = isoDate(d); render(); });
   $('#today-button').addEventListener('click', () => { selectedDate = isoDate(new Date()); render(); });
   $$('[data-mode]').forEach(button => button.addEventListener('click', () => setMode(button.dataset.mode)));
+  $$('[data-theme]').forEach(button => button.addEventListener('click', () => setTheme(button.dataset.theme)));
   $('#settings-open').addEventListener('click', () => { loadSettingsMode(currentMode()); showDialog('settings-dialog'); });
   $('#add-food').addEventListener('click', () => { resetQuickLog(); showDialog('food-dialog'); });
   $('#add-cardio').addEventListener('click', () => { $('#cardio-form').reset(); $('#cardio-error').textContent = ''; showDialog('cardio-dialog'); });
@@ -482,5 +520,6 @@
     tool('signal_add_cardio', 'Add cardio to Signal', 'Log cardio on the currently displayed date and increase its calorie budget.', { type: { type: 'string', enum: ['Incline walk', 'Running', 'Cycling', 'Rowing', 'Stairmaster', 'Sports', 'Other'] }, duration: { type: 'integer', minimum: 1 }, calories: { type: 'integer', minimum: 0 } }, ['type', 'duration', 'calories'], input => ({ date: selectedDate, entry: addCardio(input), budget: summary().budget }));
   }
 
+  applyTheme();
   render();
 })();

@@ -1,0 +1,12 @@
+:root{--acid:#56d8c9;--accent-ink:#0b1418}
+.mode-toggle button.active,.settings-mode button.active,.food-tabs button[aria-selected="true"],.stats-toggle button[aria-pressed="true"],.submit-button:not(.cardio-submit){color:var(--accent-ink)}
+.action-button:not(.cardio-button){border-color:var(--acid);background:color-mix(in srgb,var(--acid) 8%,transparent)}
+.secondary-submit{background:var(--acid)}
+.theme-section{border:1px solid var(--line);background:#11181d;padding:16px;margin:0 0 25px}
+.theme-heading{color:var(--text);font:500 12px var(--mono);letter-spacing:.09em;margin:0 0 12px}
+.theme-options{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.theme-swatch{display:flex;flex-direction:column;align-items:center;gap:8px;min-height:68px;padding:9px 4px 7px;border:1px solid #344047;background:#0c1216;color:var(--text);font:11px var(--mono);letter-spacing:.03em}
+.theme-swatch[aria-pressed="true"]{border-color:var(--acid);box-shadow:inset 0 0 0 1px var(--acid)}
+.theme-dot{width:26px;height:26px;border-radius:50%;background:var(--swatch);display:block}
+.theme-swatch[aria-pressed="true"] .theme-dot{outline:2px solid var(--acid);outline-offset:3px}
+@media(max-width:430px){.theme-options{grid-template-columns:repeat(3,minmax(0,1fr))}}
