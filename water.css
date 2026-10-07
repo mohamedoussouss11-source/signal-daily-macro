@@ -1,5 +1,15 @@
 :root{--water:#69a8ff;--water-soft:rgba(105,168,255,.08);--water-ink:#071525}
 html[data-surface="white"]{--water:#245da8;--water-soft:rgba(36,93,168,.07);--water-ink:#fff}
+.dashboard-goals{border:1px solid var(--line);background:var(--surface);padding:16px 20px;margin:0 0 18px}
+.dashboard-goals-title{display:flex;align-items:baseline;gap:13px;margin-bottom:12px}
+.dashboard-goals-title h2{font:600 15px/1.2 var(--sans);letter-spacing:.05em;margin:0}
+#dashboard-goals-form{display:grid;grid-template-columns:minmax(110px,1fr) minmax(80px,.5fr) minmax(140px,1.2fr) auto;gap:8px;align-items:end}
+#dashboard-goals-form label{min-width:0;color:var(--muted);font:11px var(--mono);letter-spacing:.05em}
+#dashboard-goals-form label small{font-size:10px;color:var(--acid)}
+#dashboard-goals-form input,#dashboard-goals-form select{display:block;width:100%;height:42px;margin-top:6px;border:1px solid var(--line);border-radius:0;background:var(--input);color:var(--text);padding:8px 10px;font:14px var(--sans)}
+#dashboard-goals-form button{height:42px;padding:0 18px;border:0;background:var(--acid);color:var(--accent-ink);font:500 11px var(--mono);letter-spacing:.05em}
+.dashboard-goals-note{font:11px/1.4 var(--mono);color:var(--muted);margin:10px 0 0}
+.dashboard-goals .form-error{margin:6px 0 0}
 .water-section{padding-top:31px}
 .water-section .section-aside{color:var(--water);font:500 14px var(--mono)}
 .water-panel{border:1px solid var(--line);background:var(--surface);margin-top:18px;padding:22px 24px}
@@ -28,7 +38,7 @@ html[data-surface="white"]{--water:#245da8;--water-soft:rgba(36,93,168,.07);--wa
 .water-entries:empty{display:none}
 .water-entry{display:inline-flex;align-items:center;gap:7px;padding:3px 7px 3px 10px;border:1px solid var(--line);background:var(--water-soft);color:var(--water);font:11px var(--mono)}
 .water-entry .remove-button{font-size:17px;padding:0 2px;color:var(--muted)}
-.water-target-settings{border:1px solid var(--line);padding:16px;margin:0 0 25px;background:var(--surface)}
+.water-target-settings{border-top:1px solid var(--line);padding:18px 0 0;margin:20px 0 0}
 .water-target-settings>p{font:11px/1.5 var(--mono);color:var(--muted);margin:0 0 14px}
 .water-target-settings label{display:block;margin-bottom:8px}
 .water-target-settings label small{float:none;margin-left:6px}
@@ -37,5 +47,5 @@ html[data-surface="white"]{--water:#245da8;--water-soft:rgba(36,93,168,.07);--wa
 .water-target-controls button{min-width:60px}
 .water-target-settings .water-settings-note{margin:9px 0 0}
 .water-target-settings .form-error{margin:8px 0 0}
-@media(max-width:720px){.water-actions{grid-template-columns:1fr;gap:18px}}
-@media(max-width:500px){.water-panel{padding:16px}.water-totals strong{font-size:23px}.water-caption{display:block}.water-caption span{display:block;text-align:left!important;margin-top:5px}.water-section{padding-top:29px}}
+@media(max-width:720px){.water-actions{grid-template-columns:1fr;gap:18px}#dashboard-goals-form{grid-template-columns:minmax(0,1.2fr) minmax(0,.7fr)}#dashboard-goals-form label:nth-child(3){grid-column:1}#dashboard-goals-form button{grid-column:2}}
+@media(max-width:500px){.dashboard-goals{padding:14px}.dashboard-goals-title{display:block}.dashboard-goals-title h2{margin-top:4px}.water-panel{padding:16px}.water-totals strong{font-size:23px}.water-caption{display:block}.water-caption span{display:block;text-align:left!important;margin-top:5px}.water-section{padding-top:29px}}

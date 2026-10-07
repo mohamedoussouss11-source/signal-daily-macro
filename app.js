@@ -24,10 +24,11 @@
     lastMode: 'maintain',
     configuredModes: { bulk: false, cut: false, maintain: false },
     targets: {
-      bulk: { protein: 170, carbs: 335, fat: 80 },
-      cut: { protein: 180, carbs: 195, fat: 65 },
-      maintain: { protein: 170, carbs: 260, fat: 75 }
+      bulk: { protein: 0, carbs: 0, fat: 0 },
+      cut: { protein: 0, carbs: 0, fat: 0 },
+      maintain: { protein: 0, carbs: 0, fat: 0 }
     },
+    calorieTargets: { bulk: 0, cut: 0, maintain: 0 },
     profile: null,
     waterTargetMl: null,
     days: {}
@@ -48,10 +49,13 @@
     try {
       const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
       if (!stored || stored.version !== 1 || typeof stored.days !== 'object') return structuredClone(defaults);
+      const configuredModes = { ...defaults.configuredModes, ...stored.configuredModes };
+      const targets = Object.fromEntries(Object.keys(modeNames).map(mode => [mode, configuredModes[mode] ? stored.targets?.[mode] || defaults.targets[mode] : structuredClone(defaults.targets[mode])]));
+      const calorieTargets = stored.calorieTargets ? { ...defaults.calorieTargets, ...stored.calorieTargets } :
+        Object.fromEntries(Object.keys(modeNames).map(mode => [mode, configuredModes[mode] ? null : 0]));
       return {
         ...structuredClone(defaults), ...stored,
-        targets: { ...structuredClone(defaults.targets), ...stored.targets },
-        configuredModes: { ...defaults.configuredModes, ...stored.configuredModes },
+        targets, calorieTargets, configuredModes,
         days: stored.days || {}
       };
     } catch {
@@ -129,9 +133,9 @@
     const weight = Number(data.profile?.weight);
     const kg = data.profile?.weightUnit === 'lb' ? weight * 0.45359237 : weight;
     const base = Number.isFinite(data.waterTargetMl) && data.waterTargetMl > 0 ? data.waterTargetMl :
-      Number.isFinite(kg) && kg > 0 ? kg * 33 : 2500;
+      Number.isFinite(kg) && kg > 0 ? kg * 33 : 0;
     const cardioMinutes = record.cardio.reduce((total, entry) => total + (Number(entry.duration) || 0), 0);
-    return { base, cardio: cardioMinutes / 30 * 350, source: data.waterTargetMl ? 'CUSTOM' : Number.isFinite(kg) && kg > 0 ? 'WEIGHT BASED' : 'STARTER TARGET' };
+    return { base, cardio: base > 0 ? cardioMinutes / 30 * 350 : 0, source: data.waterTargetMl ? 'CUSTOM' : Number.isFinite(kg) && kg > 0 ? 'WEIGHT BASED' : 'SET WEIGHT OR TARGET' };
   }
 
   function addWater(amount) {
@@ -148,13 +152,13 @@
     const target = goal.base + goal.cardio;
     const consumed = record.water.reduce((total, entry) => total + (Number(entry.amountMl) || 0), 0);
     const left = Math.max(0, target - consumed);
-    const pct = Math.round(consumed / target * 100);
+    const pct = target > 0 ? Math.round(consumed / target * 100) : 0;
     $('#water-progress').style.width = `${Math.min(100, pct)}%`;
     $('#water-progress-track').setAttribute('aria-valuenow', String(Math.round(fromMl(consumed))));
     $('#water-progress-track').setAttribute('aria-valuemax', String(Math.round(fromMl(target))));
     $('#water-intake').textContent = waterAmount(consumed);
     $('#water-target').textContent = waterAmount(target);
-    $('#water-left').textContent = left > 0 ? `${waterAmount(left)} LEFT` : `${waterAmount(consumed - target)} OVER TARGET`;
+    $('#water-left').textContent = target <= 0 ? 'SET A WATER TARGET' : left > 0 ? `${waterAmount(left)} LEFT` : `${waterAmount(consumed - target)} OVER TARGET`;
     $('#water-source').textContent = `${goal.source} · BASE ${waterAmount(goal.base)} + CARDIO ${waterAmount(goal.cardio)}`;
     $('#water-percent').textContent = `${pct}%`;
     const imperial = waterUnit() === 'oz';
@@ -164,6 +168,12 @@
     $('#water-manual-unit').textContent = waterUnit().toUpperCase();
     $('#water-custom').placeholder = imperial ? 'e.g. 12' : 'e.g. 300';
     $('#water-entries').innerHTML = record.water.length ? [...record.water].reverse().map(entry => `<div class="water-entry"><span>+${waterAmount(Number(entry.amountMl) || 0)}</span><button type="button" class="remove-button" data-remove-water="${escapeHtml(entry.id)}" aria-label="Remove ${waterAmount(Number(entry.amountMl) || 0)} of water">×</button></div>`).join('') : '';
+    if (document.activeElement !== $('#water-target-input')) loadWaterSettings();
+  }
+
+  function calorieBase(mode) {
+    const target = data.calorieTargets?.[mode];
+    return target === null ? caloriesFrom(data.targets[mode]) : Number.isFinite(target) && target > 0 ? target : 0;
   }
 
   function currentMode() {
@@ -180,9 +190,9 @@
       for (const key of ['protein', 'carbs', 'fat']) eaten[key] += Number(entry[key]) || 0;
       eaten.calories += Number(entry.calories) || 0;
     }
-    const base = caloriesFrom(targets);
+    const base = calorieBase(mode);
     const burned = record.cardio.reduce((total, entry) => total + (Number(entry.calories) || 0), 0);
-    const budget = base + burned;
+    const budget = base > 0 ? base + burned : 0;
     return { record, mode, targets, eaten, base, burned, budget, remaining: budget - eaten.calories };
   }
 
@@ -197,27 +207,31 @@
       button.classList.toggle('active', active);
       button.setAttribute('aria-pressed', String(active));
     });
-    $('#mode-note').textContent = `${modeNotes[s.mode]}${data.configuredModes[s.mode] ? '' : ' · STARTER TARGETS'}`;
-    $('#target-status').textContent = data.configuredModes[s.mode] ? 'GRAMS / DAY' : 'STARTER TARGETS · EDIT IN SETTINGS';
+    $('#mode-note').textContent = `${modeNotes[s.mode]}${data.configuredModes[s.mode] ? '' : ' · SET TARGETS'}`;
+    $('#target-status').textContent = data.configuredModes[s.mode] ? 'GRAMS / DAY' : 'SET MACROS IN SETTINGS';
+    $('#setup-mode').textContent = modeNames[s.mode];
+    if (document.activeElement !== $('#setup-weight')) $('#setup-weight').value = Number(data.profile?.weight) || 0;
+    if (document.activeElement !== $('#setup-calories')) $('#setup-calories').value = s.base;
+    if (document.activeElement !== $('#setup-weight-unit')) $('#setup-weight-unit').value = data.profile?.weightUnit === 'lb' ? 'lb' : 'kg';
     $('#calories-eaten').textContent = fmt(s.eaten.calories);
     $('#calorie-budget').innerHTML = `${fmt(s.budget)} <span>KCAL</span>`;
     $('#budget-breakdown').innerHTML = `Base ${fmt(s.base)} <span>+</span> Cardio ${fmt(s.burned)}`;
-    const over = s.remaining < 0;
-    $('#remaining-label').textContent = over ? 'OVER BUDGET' : 'REMAINING';
+    const over = s.budget > 0 && s.remaining < 0;
+    $('#remaining-label').textContent = s.budget <= 0 ? 'SET CALORIE GOAL' : over ? 'OVER BUDGET' : 'REMAINING';
     $('#remaining-label').classList.toggle('over', over);
-    $('#calories-remaining').innerHTML = `${fmt(Math.abs(s.remaining))} <span>KCAL</span>`;
+    $('#calories-remaining').innerHTML = `${fmt(s.budget > 0 ? Math.abs(s.remaining) : 0)} <span>KCAL</span>`;
     $('#calories-remaining').classList.toggle('over', over);
     const pct = s.budget > 0 ? Math.round(s.eaten.calories / s.budget * 100) : 0;
-    $('#calorie-percent').textContent = `${pct}% OF BUDGET USED`;
+    $('#calorie-percent').textContent = s.budget > 0 ? `${pct}% OF BUDGET USED` : 'ENTER A CALORIE GOAL ABOVE';
     $('#calorie-ring').style.background = `conic-gradient(${over ? macroColor('danger') : themeColor()} ${Math.min(100, pct)}%, ${macroColor('ring-track')} ${Math.min(100, pct)}%)`;
 
     $('#macro-list').innerHTML = ['protein', 'carbs', 'fat'].map(key => {
       const value = Math.round(s.eaten[key] * 10) / 10;
       const target = Number(s.targets[key]) || 0;
       const left = Math.round((target - value) * 10) / 10;
-      const excess = left < 0;
-      const width = target > 0 ? Math.min(100, value / target * 100) : value > 0 ? 100 : 0;
-      return `<div class="macro-item"><div class="macro-top"><span class="macro-name" style="color:${macroColor(key)}">${macroNames[key]}</span><span class="macro-value">${fmt(value)} <small>/ ${fmt(target)} G</small></span></div><div class="bar-track" role="progressbar" aria-label="${macroNames[key]}" aria-valuenow="${value}" aria-valuemin="0" aria-valuemax="${target}"><div class="bar-fill" style="width:${width}%;background:${excess ? macroColor('danger') : macroColor(key)}"></div></div><div class="macro-bottom"><span>${target > 0 ? Math.round(value / target * 100) : 0}% OF TARGET</span><span class="${excess ? 'over' : ''}">${fmt(Math.abs(left))} G ${excess ? 'OVER' : 'LEFT'}</span></div></div>`;
+      const excess = target > 0 && left < 0;
+      const width = target > 0 ? Math.min(100, value / target * 100) : 0;
+      return `<div class="macro-item"><div class="macro-top"><span class="macro-name" style="color:${macroColor(key)}">${macroNames[key]}</span><span class="macro-value">${fmt(value)} <small>/ ${fmt(target)} G</small></span></div><div class="bar-track" role="progressbar" aria-label="${macroNames[key]}" aria-valuenow="${value}" aria-valuemin="0" aria-valuemax="${target}"><div class="bar-fill" style="width:${width}%;background:${excess ? macroColor('danger') : macroColor(key)}"></div></div><div class="macro-bottom"><span>${target > 0 ? `${Math.round(value / target * 100)}% OF TARGET` : 'SET TARGET IN SETTINGS'}</span><span class="${excess ? 'over' : ''}">${target > 0 ? `${fmt(Math.abs(left))} G ${excess ? 'OVER' : 'LEFT'}` : '—'}</span></div></div>`;
     }).join('');
 
     $('#food-list').innerHTML = s.record.food.length ? s.record.food.map(entry => `<div class="entry-row"><div class="entry-icon" aria-hidden="true">＋</div><div class="entry-main"><div class="entry-name" title="${escapeHtml(entry.name)}">${escapeHtml(entry.name)}</div><div class="entry-meta">P ${fmt(entry.protein)} · C ${fmt(entry.carbs)} · F ${fmt(entry.fat)}${entry.source === 'quick' ? ' · QUICK LOG' : entry.overridden ? ' · MANUAL KCAL' : ''}</div></div><div class="entry-calories">${fmt(entry.calories)} <small>KCAL</small></div><button class="remove-button" type="button" data-remove-food="${escapeHtml(entry.id)}" aria-label="Remove ${escapeHtml(entry.name)}">×</button></div>`).join('') : '<div class="empty-state">NO FOOD LOGGED FOR THIS DAY.</div>';
@@ -245,15 +259,15 @@
       if (!point.logged) return '';
       const value = point[key];
       const target = point[targetKey];
-      const fill = key === 'calories' ? value > target * 1.05 ? macroColor('danger') : value < target * .95 ? macroColor('muted') : color : color;
+      const fill = key === 'calories' && target > 0 ? value > target * 1.05 ? macroColor('danger') : value < target * .95 ? macroColor('muted') : color : color;
       const barY = y(value);
       return `<rect x="${x(index) - barWidth / 2}" y="${barY}" width="${barWidth}" height="${Math.max(1, bottom - barY)}" fill="${fill}"><title>${point.date}: ${fmt(value)} ${unit} / ${fmt(target)} target</title></rect>`;
     }).join('');
     const targetLines = stats.points.map((point, index) => {
-      if (!point.logged) return '';
+      if (!point.logged || point[targetKey] <= 0) return '';
       const currentX = x(index), currentY = y(point[targetKey]);
       const previous = stats.points[index - 1];
-      const connector = previous?.logged ? `<line class="target" x1="${x(index - 1)}" y1="${y(previous[targetKey])}" x2="${currentX}" y2="${currentY}"/>` : '';
+      const connector = previous?.logged && previous[targetKey] > 0 ? `<line class="target" x1="${x(index - 1)}" y1="${y(previous[targetKey])}" x2="${currentX}" y2="${currentY}"/>` : '';
       return `${connector}<line class="target" x1="${currentX - barWidth / 2}" y1="${currentY}" x2="${currentX + barWidth / 2}" y2="${currentY}"/>`;
     }).join('');
     return `<div class="stats-chart"><div class="stats-chart-head"><span class="stats-chart-title">${title}</span><span class="stats-chart-unit">${unit} / LOGGED DAY</span></div><div class="stats-chart-legend"><span><i style="background:${color}"></i> EATEN</span><span><i class="line"></i> TARGET</span>${key === 'calories' ? `<span><i style="background:${macroColor('danger')}"></i> OVER</span>` : ''}</div><svg class="stats-chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${title} daily trend and target from ${statsDate(stats.start)} to ${statsDate(stats.end)}">${grid}${bars}${targetLines}</svg><div class="stats-chart-dates"><span>${statsDate(stats.start)}</span><span>${statsDate(stats.end)}</span></div></div>`;
@@ -273,8 +287,9 @@
     ].join('');
     $('#stats-macros').innerHTML = ['protein', 'carbs', 'fat'].map(key => `<div class="stats-macro"><div class="stats-macro-name" style="color:${macroColor(key)}">AVG ${macroNames[key]}</div><div class="stats-macro-line"><strong>${average(stats.average[key])}</strong><span>G / LOGGED DAY</span></div><div class="stats-macro-pct">${stats.averageTargetPct[key] === null ? '—' : `${Math.round(stats.averageTargetPct[key])}%`} OF ${macroNames[key]} TARGET ON AVERAGE</div></div>`).join('');
     const counts = stats.rangeCounts;
-    const countShare = count => stats.loggedDays ? count / stats.loggedDays * 100 : 0;
-    $('#stats-range').innerHTML = `<div class="stats-detail-title">CALORIE TARGET RANGE <span>· ±5%</span></div><div class="stats-range-row"><div class="stats-range-count within"><strong>${counts.within}</strong><span>WITHIN</span></div><div class="stats-range-count over"><strong>${counts.over}</strong><span>OVER</span></div><div class="stats-range-count under"><strong>${counts.under}</strong><span>UNDER</span></div></div><div class="stats-range-bar" aria-label="${counts.within} within, ${counts.over} over, ${counts.under} under"><i class="within" style="width:${countShare(counts.within)}%"></i><i class="over" style="width:${countShare(counts.over)}%"></i><i class="under" style="width:${countShare(counts.under)}%"></i></div>`;
+    const ratedDays = stats.loggedDays - stats.daysWithoutCalorieGoal;
+    const countShare = count => ratedDays ? count / ratedDays * 100 : 0;
+    $('#stats-range').innerHTML = `<div class="stats-detail-title">CALORIE TARGET RANGE <span>· ±5%</span></div><div class="stats-range-row"><div class="stats-range-count within"><strong>${counts.within}</strong><span>WITHIN</span></div><div class="stats-range-count over"><strong>${counts.over}</strong><span>OVER</span></div><div class="stats-range-count under"><strong>${counts.under}</strong><span>UNDER</span></div></div><div class="stats-range-bar" aria-label="${counts.within} within, ${counts.over} over, ${counts.under} under"><i class="within" style="width:${countShare(counts.within)}%"></i><i class="over" style="width:${countShare(counts.over)}%"></i><i class="under" style="width:${countShare(counts.under)}%"></i></div>${stats.daysWithoutCalorieGoal ? `<div class="stats-no-goal">${stats.daysWithoutCalorieGoal} LOGGED DAY${stats.daysWithoutCalorieGoal === 1 ? '' : 'S'} WITHOUT A CALORIE GOAL</div>` : ''}`;
     const spans = stats.modeSpans;
     const mixed = new Set(spans.map(span => span.mode)).size > 1;
     const modeMessage = !spans.length ? '<div class="stats-mode-single">NO MODE HISTORY IN THIS PERIOD.</div>' : mixed ? '<div class="stats-mode-warning">MODES CHANGED · AVERAGES COMBINE DIFFERENT TARGETS.</div>' : '<div class="stats-mode-single">ONE RECORDED MODE IN THIS PERIOD.</div>';
@@ -330,6 +345,7 @@
     const targets = Object.fromEntries(['protein', 'carbs', 'fat'].map(key => [key, number(values[key])]));
     if (!Object.values(targets).every(validAmount) || caloriesFrom(targets) <= 0) throw new Error('Enter valid targets above zero total calories.');
     data.targets[mode] = targets;
+    if (!data.calorieTargets[mode]) data.calorieTargets[mode] = caloriesFrom(targets);
     data.configuredModes[mode] = true;
     save(); render();
     return targets;
@@ -487,8 +503,8 @@
   function loadWaterSettings() {
     $('#water-settings-unit').textContent = waterUnit().toUpperCase();
     $('#water-target-input').value = data.waterTargetMl ? String(Math.round(fromMl(data.waterTargetMl) * 10) / 10) : '';
-    $('#water-target-input').placeholder = data.profile?.weight ? 'Auto from weight' : 'Auto: starter target';
-    $('#water-settings-note').textContent = `Current base: ${waterAmount(waterGoal(day()).base)}. Cardio adds to this target.`;
+    $('#water-target-input').placeholder = data.profile?.weight ? 'Auto from weight' : 'Set weight or water goal';
+    $('#water-settings-note').textContent = data.profile?.weight || data.waterTargetMl ? `Current base: ${waterAmount(waterGoal(day()).base)}. Cardio adds to this target.` : 'Enter a weight above or set a water goal here.';
     $('#water-target-error').textContent = '';
   }
 
@@ -510,19 +526,43 @@
       result[mode] = { protein, carbs, fat };
     }
     data.targets = result;
+    data.calorieTargets = Object.fromEntries(Object.entries(result).map(([mode, targets]) => [mode, caloriesFrom(targets)]));
     data.configuredModes = { bulk: true, cut: true, maintain: true };
     data.profile = { ...input, maintenance };
     save(); render(); loadSettingsMode(settingsMode);
     return result;
   }
 
+  function saveDashboardGoals() {
+    const weight = Number($('#setup-weight').value);
+    const calories = Number($('#setup-calories').value);
+    const weightUnit = $('#setup-weight-unit').value;
+    if (!Number.isFinite(weight) || weight < 0 || weight > 1000 || !['kg', 'lb'].includes(weightUnit)) throw new Error('Enter a valid weight, or 0 to leave it unset.');
+    if (!Number.isFinite(calories) || !Number.isInteger(calories) || calories < 0 || calories > 20000) throw new Error('Enter a valid calorie goal, or 0 to leave it unset.');
+    data.profile = { ...(data.profile || {}), weight, weightUnit };
+    data.calorieTargets[currentMode()] = calories;
+    $('#calculator-form').elements.weight.value = weight || '';
+    $('#calculator-form').elements.weightUnit.value = weightUnit;
+    save(); render();
+  }
+
   $('#prev-day').addEventListener('click', () => { const d = fromIso(selectedDate); d.setDate(d.getDate() - 1); selectedDate = isoDate(d); render(); });
   $('#next-day').addEventListener('click', () => { const d = fromIso(selectedDate); d.setDate(d.getDate() + 1); selectedDate = isoDate(d); render(); });
   $('#today-button').addEventListener('click', () => { selectedDate = isoDate(new Date()); render(); });
+  $('#dashboard-goals-form').addEventListener('submit', event => {
+    event.preventDefault();
+    try { saveDashboardGoals(); $('#dashboard-goals-error').textContent = ''; }
+    catch (error) { $('#dashboard-goals-error').textContent = error.message; }
+  });
+  $('#setup-weight-unit').addEventListener('change', event => {
+    const input = $('#setup-weight');
+    const value = Number(input.value);
+    if (value > 0) input.value = String(Math.round((event.target.value === 'lb' ? value * 2.2046226218 : value / 2.2046226218) * 10) / 10);
+  });
   $$('[data-mode]').forEach(button => button.addEventListener('click', () => setMode(button.dataset.mode)));
   $$('[data-theme]').forEach(button => button.addEventListener('click', () => setTheme(button.dataset.theme)));
   $$('[data-surface]').forEach(button => button.addEventListener('click', () => setSurface(button.dataset.surface)));
-  $('#settings-open').addEventListener('click', () => { loadSettingsMode(currentMode()); loadWaterSettings(); showDialog('settings-dialog'); });
+  $('#settings-open').addEventListener('click', () => { loadSettingsMode(currentMode()); showDialog('settings-dialog'); });
   $('#add-food').addEventListener('click', () => { resetQuickLog(); showDialog('food-dialog'); });
   $('#add-cardio').addEventListener('click', () => { $('#cardio-form').reset(); $('#cardio-error').textContent = ''; showDialog('cardio-dialog'); });
   $$('[data-close]').forEach(button => button.addEventListener('click', () => document.getElementById(button.dataset.close).close()));

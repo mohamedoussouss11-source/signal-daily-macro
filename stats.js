@@ -26,6 +26,7 @@
     const points = [];
     const modeEvents = [];
     let loggedDays = 0;
+    let daysWithoutCalorieGoal = 0;
 
     for (let date = fromIso(start), last = fromIso(end); date <= last; date.setDate(date.getDate() + 1)) {
       const dateKey = isoDate(date);
@@ -46,7 +47,9 @@
       const cardioMinutes = cardio.reduce((sum, item) => sum + safeNumber(item.duration), 0);
       const cardioCalories = cardio.reduce((sum, item) => sum + safeNumber(item.calories), 0);
       const targets = targetSets[mode] || { protein: 0, carbs: 0, fat: 0 };
-      const budget = calorieTarget(targets) + cardioCalories;
+      const savedGoal = data?.calorieTargets?.[mode];
+      const baseGoal = savedGoal == null ? calorieTarget(targets) : safeNumber(savedGoal);
+      const budget = baseGoal > 0 ? baseGoal + cardioCalories : 0;
       for (const key of ['calories', ...keys]) totals[key] += dayTotals[key];
       totals.cardioMinutes += cardioMinutes;
       totals.cardioCalories += cardioCalories;
@@ -54,10 +57,13 @@
         const target = safeNumber(targets[key]);
         if (target > 0) { percentages[key].sum += dayTotals[key] / target * 100; percentages[key].count += 1; }
       }
-      const deviation = budget * 0.05;
-      if (dayTotals.calories > budget + deviation) rangeCounts.over += 1;
-      else if (dayTotals.calories < budget - deviation) rangeCounts.under += 1;
-      else rangeCounts.within += 1;
+      if (budget <= 0) daysWithoutCalorieGoal += 1;
+      else {
+        const deviation = budget * 0.05;
+        if (dayTotals.calories > budget + deviation) rangeCounts.over += 1;
+        else if (dayTotals.calories < budget - deviation) rangeCounts.under += 1;
+        else rangeCounts.within += 1;
+      }
       points.push({ date: dateKey, logged, mode, calories: dayTotals.calories, targetCalories: budget, protein: dayTotals.protein, targetProtein: safeNumber(targets.protein) });
     }
 
@@ -74,6 +80,7 @@
       averageTargetPct: Object.fromEntries(keys.map(key => [key, percentages[key].count ? percentages[key].sum / percentages[key].count : null])),
       cardioMinutes: totals.cardioMinutes,
       cardioCalories: totals.cardioCalories,
+      daysWithoutCalorieGoal,
       rangeCounts, modeSpans, points
     };
   }
