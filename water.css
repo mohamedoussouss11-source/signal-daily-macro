@@ -1,0 +1,41 @@
+:root{--water:#69a8ff;--water-soft:rgba(105,168,255,.08);--water-ink:#071525}
+html[data-surface="white"]{--water:#245da8;--water-soft:rgba(36,93,168,.07);--water-ink:#fff}
+.water-section{padding-top:31px}
+.water-section .section-aside{color:var(--water);font:500 14px var(--mono)}
+.water-panel{border:1px solid var(--line);background:var(--surface);margin-top:18px;padding:22px 24px}
+.water-totals{display:flex;align-items:baseline;justify-content:space-between;gap:16px}
+.water-totals>div{display:flex;flex-direction:column;gap:4px}
+.water-totals>div:last-child{text-align:right}
+.water-label{font:11px var(--mono);letter-spacing:.09em;color:var(--muted)}
+.water-totals strong{font:600 27px/1.15 var(--sans);letter-spacing:-.04em}
+#water-intake{color:var(--water)}
+.water-progress-track{height:13px;margin:17px 0 9px;background:var(--ring-track);overflow:hidden;border:1px solid var(--line)}
+.water-progress{height:100%;width:0;background:var(--water);transition:width .25s ease}
+.water-caption{display:flex;justify-content:space-between;gap:15px;font:11px var(--mono);letter-spacing:.02em;color:var(--muted)}
+#water-left{color:var(--water);white-space:nowrap}
+#water-source{text-align:right}
+.water-actions{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(190px,.7fr);gap:22px;border-top:1px solid var(--line);margin-top:20px;padding-top:20px}
+.water-quick{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.water-quick button,.water-manual button,.water-target-controls button{min-height:42px;border:1px solid var(--water);background:var(--water-soft);color:var(--water);font:500 11px var(--mono);letter-spacing:.03em;padding:9px 8px}
+.water-quick button:hover,.water-manual button:hover,.water-target-controls button:hover{background:var(--water);color:var(--water-ink)}
+.water-manual label,.water-target-settings label{font:11px var(--mono);color:var(--muted);letter-spacing:.06em}
+.water-manual>div{display:flex;align-items:center;margin-top:8px;border:1px solid var(--line);background:var(--input)}
+.water-manual input{width:100%;min-width:0;height:42px;border:0;background:transparent;color:var(--text);padding:8px 10px;font:14px var(--sans)}
+.water-manual span{color:var(--muted);font:11px var(--mono);padding:0 9px}
+.water-manual button{height:42px;min-height:0;border-top:0;border-bottom:0;border-right:0;background:var(--water);color:var(--water-ink);padding:0 13px}
+.water-manual .form-error{margin:5px 0 0}
+.water-entries{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px}
+.water-entries:empty{display:none}
+.water-entry{display:inline-flex;align-items:center;gap:7px;padding:3px 7px 3px 10px;border:1px solid var(--line);background:var(--water-soft);color:var(--water);font:11px var(--mono)}
+.water-entry .remove-button{font-size:17px;padding:0 2px;color:var(--muted)}
+.water-target-settings{border:1px solid var(--line);padding:16px;margin:0 0 25px;background:var(--surface)}
+.water-target-settings>p{font:11px/1.5 var(--mono);color:var(--muted);margin:0 0 14px}
+.water-target-settings label{display:block;margin-bottom:8px}
+.water-target-settings label small{float:none;margin-left:6px}
+.water-target-controls{display:flex;gap:7px}
+.water-target-controls input{flex:1;min-width:0;min-height:42px;border:1px solid var(--line);background:var(--input);color:var(--text);padding:8px 10px}
+.water-target-controls button{min-width:60px}
+.water-target-settings .water-settings-note{margin:9px 0 0}
+.water-target-settings .form-error{margin:8px 0 0}
+@media(max-width:720px){.water-actions{grid-template-columns:1fr;gap:18px}}
+@media(max-width:500px){.water-panel{padding:16px}.water-totals strong{font-size:23px}.water-caption{display:block}.water-caption span{display:block;text-align:left!important;margin-top:5px}.water-section{padding-top:29px}}

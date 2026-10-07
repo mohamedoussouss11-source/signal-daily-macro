@@ -16,6 +16,7 @@
     gold: { dark: '#f1d468', light: '#7f6200' }
   };
   const surfaces = ['dark', 'white', 'navy', 'plum', 'forest'];
+  const ML_PER_OZ = 29.5735295625;
   const defaults = {
     version: 1,
     theme: 'teal',
@@ -28,6 +29,7 @@
       maintain: { protein: 170, carbs: 260, fat: 75 }
     },
     profile: null,
+    waterTargetMl: null,
     days: {}
   };
 
@@ -110,9 +112,58 @@
   }
 
   function day(create = false) {
-    if (!data.days[selectedDate] && create) data.days[selectedDate] = { mode: data.lastMode, food: [], cardio: [] };
+    if (!data.days[selectedDate] && create) data.days[selectedDate] = { mode: data.lastMode, food: [], cardio: [], water: [] };
     const record = data.days[selectedDate];
-    return record && Array.isArray(record.food) && Array.isArray(record.cardio) ? record : { mode: data.lastMode, food: [], cardio: [] };
+    if (record && Array.isArray(record.food) && Array.isArray(record.cardio)) {
+      if (!Array.isArray(record.water)) record.water = [];
+      return record;
+    }
+    return { mode: data.lastMode, food: [], cardio: [], water: [] };
+  }
+
+  function waterUnit() { return data.profile?.weightUnit === 'lb' ? 'oz' : 'ml'; }
+  function toMl(amount) { return waterUnit() === 'oz' ? amount * ML_PER_OZ : amount; }
+  function fromMl(amount) { return waterUnit() === 'oz' ? amount / ML_PER_OZ : amount; }
+  function waterAmount(amount) { return `${fmt(Math.round(fromMl(amount) * 10) / 10)} ${waterUnit().toUpperCase()}`; }
+  function waterGoal(record) {
+    const weight = Number(data.profile?.weight);
+    const kg = data.profile?.weightUnit === 'lb' ? weight * 0.45359237 : weight;
+    const base = Number.isFinite(data.waterTargetMl) && data.waterTargetMl > 0 ? data.waterTargetMl :
+      Number.isFinite(kg) && kg > 0 ? kg * 33 : 2500;
+    const cardioMinutes = record.cardio.reduce((total, entry) => total + (Number(entry.duration) || 0), 0);
+    return { base, cardio: cardioMinutes / 30 * 350, source: data.waterTargetMl ? 'CUSTOM' : Number.isFinite(kg) && kg > 0 ? 'WEIGHT BASED' : 'STARTER TARGET' };
+  }
+
+  function addWater(amount) {
+    const value = Number(amount);
+    if (!Number.isFinite(value) || value <= 0 || value > 10000) throw new Error('Enter a water amount above zero.');
+    const entry = { id: uid(), amountMl: Math.round(toMl(value)) };
+    day(true).water.push(entry);
+    save(); render();
+    return entry;
+  }
+
+  function renderWater(record) {
+    const goal = waterGoal(record);
+    const target = goal.base + goal.cardio;
+    const consumed = record.water.reduce((total, entry) => total + (Number(entry.amountMl) || 0), 0);
+    const left = Math.max(0, target - consumed);
+    const pct = Math.round(consumed / target * 100);
+    $('#water-progress').style.width = `${Math.min(100, pct)}%`;
+    $('#water-progress-track').setAttribute('aria-valuenow', String(Math.round(fromMl(consumed))));
+    $('#water-progress-track').setAttribute('aria-valuemax', String(Math.round(fromMl(target))));
+    $('#water-intake').textContent = waterAmount(consumed);
+    $('#water-target').textContent = waterAmount(target);
+    $('#water-left').textContent = left > 0 ? `${waterAmount(left)} LEFT` : `${waterAmount(consumed - target)} OVER TARGET`;
+    $('#water-source').textContent = `${goal.source} · BASE ${waterAmount(goal.base)} + CARDIO ${waterAmount(goal.cardio)}`;
+    $('#water-percent').textContent = `${pct}%`;
+    const imperial = waterUnit() === 'oz';
+    const amounts = imperial ? [8, 16, 8, 16.9] : [250, 500, 240, 500];
+    const labels = imperial ? ['+8 OZ', '+16 OZ', '+1 CUP · 8 OZ', '+1 BOTTLE · 16.9 OZ'] : ['+250 ML', '+500 ML', '+1 CUP · 240 ML', '+1 BOTTLE · 500 ML'];
+    $$('[data-water-quick]').forEach((button, index) => { button.dataset.waterQuick = String(amounts[index]); button.textContent = labels[index]; });
+    $('#water-manual-unit').textContent = waterUnit().toUpperCase();
+    $('#water-custom').placeholder = imperial ? 'e.g. 12' : 'e.g. 300';
+    $('#water-entries').innerHTML = record.water.length ? [...record.water].reverse().map(entry => `<div class="water-entry"><span>+${waterAmount(Number(entry.amountMl) || 0)}</span><button type="button" class="remove-button" data-remove-water="${escapeHtml(entry.id)}" aria-label="Remove ${waterAmount(Number(entry.amountMl) || 0)} of water">×</button></div>`).join('') : '';
   }
 
   function currentMode() {
@@ -171,6 +222,7 @@
 
     $('#food-list').innerHTML = s.record.food.length ? s.record.food.map(entry => `<div class="entry-row"><div class="entry-icon" aria-hidden="true">＋</div><div class="entry-main"><div class="entry-name" title="${escapeHtml(entry.name)}">${escapeHtml(entry.name)}</div><div class="entry-meta">P ${fmt(entry.protein)} · C ${fmt(entry.carbs)} · F ${fmt(entry.fat)}${entry.source === 'quick' ? ' · QUICK LOG' : entry.overridden ? ' · MANUAL KCAL' : ''}</div></div><div class="entry-calories">${fmt(entry.calories)} <small>KCAL</small></div><button class="remove-button" type="button" data-remove-food="${escapeHtml(entry.id)}" aria-label="Remove ${escapeHtml(entry.name)}">×</button></div>`).join('') : '<div class="empty-state">NO FOOD LOGGED FOR THIS DAY.</div>';
     $('#cardio-list').innerHTML = s.record.cardio.length ? s.record.cardio.map(entry => `<div class="entry-row"><div class="entry-icon" aria-hidden="true">↗</div><div class="entry-main"><div class="entry-name">${escapeHtml(entry.type)}</div><div class="entry-meta">${fmt(entry.duration)} MINUTES</div></div><div class="entry-calories">+${fmt(entry.calories)} <small>KCAL</small></div><button class="remove-button" type="button" data-remove-cardio="${escapeHtml(entry.id)}" aria-label="Remove ${escapeHtml(entry.type)}">×</button></div>`).join('') : '<div class="empty-state">NO CARDIO LOGGED FOR THIS DAY.</div>';
+    renderWater(s.record);
     renderStatistics();
   }
 
@@ -432,6 +484,14 @@
     $('#target-calculated').textContent = `${fmt(caloriesFrom(values))} KCAL`;
   }
 
+  function loadWaterSettings() {
+    $('#water-settings-unit').textContent = waterUnit().toUpperCase();
+    $('#water-target-input').value = data.waterTargetMl ? String(Math.round(fromMl(data.waterTargetMl) * 10) / 10) : '';
+    $('#water-target-input').placeholder = data.profile?.weight ? 'Auto from weight' : 'Auto: starter target';
+    $('#water-settings-note').textContent = `Current base: ${waterAmount(waterGoal(day()).base)}. Cardio adds to this target.`;
+    $('#water-target-error').textContent = '';
+  }
+
   function calculateTargets(input) {
     const weight = number(input.weight), height = number(input.height), age = number(input.age), activity = number(input.activity);
     if (!Number.isFinite(weight) || weight <= 0 || !Number.isFinite(height) || height <= 0 || !Number.isInteger(age) || age < 18 || age > 120 || ![1.2, 1.375, 1.55, 1.725, 1.9].includes(activity)) throw new Error('Enter valid body data and activity level.');
@@ -462,7 +522,7 @@
   $$('[data-mode]').forEach(button => button.addEventListener('click', () => setMode(button.dataset.mode)));
   $$('[data-theme]').forEach(button => button.addEventListener('click', () => setTheme(button.dataset.theme)));
   $$('[data-surface]').forEach(button => button.addEventListener('click', () => setSurface(button.dataset.surface)));
-  $('#settings-open').addEventListener('click', () => { loadSettingsMode(currentMode()); showDialog('settings-dialog'); });
+  $('#settings-open').addEventListener('click', () => { loadSettingsMode(currentMode()); loadWaterSettings(); showDialog('settings-dialog'); });
   $('#add-food').addEventListener('click', () => { resetQuickLog(); showDialog('food-dialog'); });
   $('#add-cardio').addEventListener('click', () => { $('#cardio-form').reset(); $('#cardio-error').textContent = ''; showDialog('cardio-dialog'); });
   $$('[data-close]').forEach(button => button.addEventListener('click', () => document.getElementById(button.dataset.close).close()));
@@ -506,6 +566,27 @@
     try { addCardio(Object.fromEntries(new FormData(event.currentTarget))); $('#cardio-dialog').close(); }
     catch (error) { $('#cardio-error').textContent = error.message; }
   });
+  $$('[data-water-quick]').forEach(button => button.addEventListener('click', () => {
+    try { addWater(button.dataset.waterQuick); $('#water-error').textContent = ''; }
+    catch (error) { $('#water-error').textContent = error.message; }
+  }));
+  $('#water-form').addEventListener('submit', event => {
+    event.preventDefault();
+    try {
+      addWater($('#water-custom').value);
+      $('#water-custom').value = '';
+      $('#water-error').textContent = '';
+    } catch (error) { $('#water-error').textContent = error.message; }
+  });
+  $('#water-entries').addEventListener('click', event => { const button = event.target.closest('[data-remove-water]'); if (button) removeEntry('water', button.dataset.removeWater); });
+  $('#water-target-form').addEventListener('submit', event => {
+    event.preventDefault();
+    const value = Number($('#water-target-input').value);
+    if (!Number.isFinite(value) || value <= 0 || value > 10000) { $('#water-target-error').textContent = 'Enter a target above zero, or choose Auto.'; return; }
+    data.waterTargetMl = Math.round(toMl(value));
+    save(); render(); loadWaterSettings();
+  });
+  $('#water-target-auto').addEventListener('click', () => { data.waterTargetMl = null; save(); render(); loadWaterSettings(); });
   $('#targets-form').addEventListener('submit', event => {
     event.preventDefault();
     try { setTargets(settingsMode, Object.fromEntries(new FormData(event.currentTarget))); $('#settings-dialog').close(); }
