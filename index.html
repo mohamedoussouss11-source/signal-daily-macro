@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0f13">
+  <meta name="description" content="Signal tracks daily macros, calories, and cardio across bulk, cut, and maintain modes.">
+  <title>Signal — Macro + Cardio Tracker</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230b0f13'/%3E%3Cpath d='M13 38h10l6-16 7 24 6-13h9' fill='none' stroke='%23d6f75d' stroke-width='5' stroke-linecap='square'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./stats.css">
+  <link rel="stylesheet" href="./quick-log.css">
+  <script src="./stats.js" defer></script>
+  <script src="./meal-estimator.js" defer></script>
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>SIGNAL</span><span class="brand-suffix">/ DAILY</span></div>
+      <button class="icon-button settings-button" id="settings-open" type="button" aria-label="Open settings" title="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 17h16M9 4v6M15 14v6"/></svg><span>Settings</span></button>
+    </header>
+
+    <main>
+      <div class="day-strip">
+        <div class="day-label"><span class="eyebrow">DAILY LOG</span><h1 id="date-title">Today</h1></div>
+        <div class="date-controls"><button class="nav-button" id="prev-day" type="button" aria-label="Previous day">‹</button><button class="today-button" id="today-button" type="button">TODAY</button><button class="nav-button" id="next-day" type="button" aria-label="Next day">›</button></div>
+      </div>
+
+      <section class="mode-section" aria-label="Goal mode">
+        <div class="mode-toggle" role="group" aria-label="Goal mode"><button type="button" data-mode="bulk">BULK</button><button type="button" data-mode="cut">CUT</button><button type="button" data-mode="maintain">MAINTAIN</button></div>
+        <div class="mode-note" id="mode-note">+ SURPLUS TARGET</div>
+      </section>
+
+      <section class="overview" aria-label="Daily calories">
+        <div class="ring-wrap"><div class="calorie-ring" id="calorie-ring"><div class="ring-center"><span class="eyebrow">EATEN</span><strong id="calories-eaten">0</strong><span class="ring-unit">KCAL</span></div></div></div>
+        <div class="overview-data"><div class="eyebrow">CALORIE BUDGET <span class="live-dot" aria-hidden="true"></span></div><div class="budget-number" id="calorie-budget">0 <span>KCAL</span></div><div class="budget-breakdown" id="budget-breakdown">Base 0 <span>+</span> Cardio 0</div><div class="divider"></div><div class="remaining-label" id="remaining-label">REMAINING</div><div class="remaining-number" id="calories-remaining">0 <span>KCAL</span></div><div class="percent-line" id="calorie-percent">0% OF BUDGET USED</div></div>
+      </section>
+
+      <section class="macro-section" aria-labelledby="macro-heading"><div class="section-heading"><div><span class="eyebrow">01 / INTAKE</span><h2 id="macro-heading">MACROS</h2></div><span class="section-aside" id="target-status">GRAMS / DAY</span></div><div class="macro-list" id="macro-list"></div></section>
+
+      <section class="log-section" aria-labelledby="food-heading"><div class="section-heading"><div><span class="eyebrow">02 / NUTRITION</span><h2 id="food-heading">FOOD LOG</h2></div><button class="action-button" id="add-food" type="button"><span aria-hidden="true">＋</span> ADD FOOD</button></div><div id="food-list" class="entry-list"></div></section>
+
+      <section class="log-section cardio-section" aria-labelledby="cardio-heading"><div class="section-heading"><div><span class="eyebrow">03 / MOVEMENT</span><h2 id="cardio-heading">CARDIO LOG</h2></div><button class="action-button cardio-button" id="add-cardio" type="button"><span aria-hidden="true">＋</span> ADD CARDIO</button></div><div id="cardio-list" class="entry-list"></div></section>
+
+      <section class="statistics-section" aria-labelledby="statistics-heading">
+        <div class="section-heading statistics-heading"><div><span class="eyebrow">04 / HISTORY</span><h2 id="statistics-heading">STATISTICS</h2></div><div class="stats-toggle" role="group" aria-label="Statistics period"><button type="button" data-stats-period="month" aria-pressed="true">THIS MONTH</button><button type="button" data-stats-period="threeMonths" aria-pressed="false">LAST 3 MONTHS</button></div></div>
+        <div class="stats-period-note" id="stats-period-note"></div>
+        <div class="stats-summary" id="stats-summary"></div>
+        <div class="stats-macros" id="stats-macros"></div>
+        <div class="stats-detail-grid"><div class="stats-detail" id="stats-range"></div><div class="stats-detail" id="stats-modes"></div></div>
+        <div class="stats-charts" id="stats-charts"></div>
+        <p class="stats-method">Averages use logged days only. Within target means ±5% of that day’s calorie budget, including cardio. Past targets reflect the current settings for each recorded mode.</p>
+      </section>
+      <footer>LOCAL DATA ONLY <span>·</span> NO ACCOUNT REQUIRED</footer>
+    </main>
+  </div>
+
+  <dialog id="food-dialog" class="panel-dialog food-dialog">
+    <div class="dialog-heading"><div><span class="eyebrow">NEW ENTRY / 01</span><h2>ADD FOOD</h2></div><button class="close-button" type="button" data-close="food-dialog" aria-label="Close">×</button></div>
+    <div class="food-tabs" role="tablist" aria-label="Food entry method"><button id="quick-tab" role="tab" type="button" aria-selected="true" aria-controls="quick-panel">QUICK LOG</button><button id="manual-tab" role="tab" type="button" aria-selected="false" aria-controls="manual-panel">MANUAL</button></div>
+    <div id="quick-panel" role="tabpanel" aria-labelledby="quick-tab">
+      <form id="quick-form" novalidate><label class="quick-description-label">WHAT DID YOU EAT?<input id="quick-description" name="description" type="text" maxlength="500" required placeholder="e.g. 3 eggs, 1 cup rice, 50g dry oats" autocomplete="off"></label><button class="submit-button" id="quick-estimate" type="submit"><span class="quick-estimate-label">ESTIMATE MACROS</span><span aria-hidden="true">→</span></button></form><p class="quick-prep-note">Rice, pasta, oats and beans default to cooked. Say “raw” or “dry” if weighed before cooking.</p>
+      <p class="quick-status" id="quick-status" role="status" aria-live="polite"></p>
+      <p class="form-error" id="quick-error" role="alert"></p>
+      <button class="quick-fallback" id="quick-fallback" type="button" hidden>OPEN MANUAL ENTRY →</button>
+      <section id="quick-review" class="quick-review" aria-label="Estimated meal breakdown" hidden><div class="quick-review-heading"><span>ESTIMATED BREAKDOWN</span><small>EDIT ANY NUMBER</small></div><div id="quick-items"></div><div class="quick-total"><span>TOTAL</span><div id="quick-total-values"></div></div><button class="submit-button" id="quick-save" type="button">ADD TO LOG <span>→</span></button></section>
+    </div>
+    <div id="manual-panel" role="tabpanel" aria-labelledby="manual-tab" hidden><form id="food-form" method="dialog" novalidate><label>FOOD OR MEAL NAME<input name="name" type="text" required maxlength="80" placeholder="e.g. Chicken rice bowl" autocomplete="off"></label><div class="form-grid three"><label>PROTEIN <small>G</small><input name="protein" type="number" min="0" step="0.1" inputmode="decimal" required placeholder="0"></label><label>CARBS <small>G</small><input name="carbs" type="number" min="0" step="0.1" inputmode="decimal" required placeholder="0"></label><label>FAT <small>G</small><input name="fat" type="number" min="0" step="0.1" inputmode="decimal" required placeholder="0"></label></div><div class="computed-line">CALCULATED <strong id="food-calculated">0 KCAL</strong> <span>4 / 4 / 9</span></div><label>CALORIES OVERRIDE <small>OPTIONAL</small><input name="calories" type="number" min="0" step="1" inputmode="numeric" placeholder="Use calculated calories"></label><p class="form-error" id="food-error" role="alert"></p><button class="submit-button" type="submit">SAVE FOOD ENTRY <span>→</span></button></form></div>
+  </dialog>
+
+  <dialog id="cardio-dialog" class="panel-dialog"><form id="cardio-form" method="dialog" novalidate><div class="dialog-heading"><div><span class="eyebrow">NEW ENTRY / 02</span><h2>ADD CARDIO</h2></div><button class="close-button" type="button" data-close="cardio-dialog" aria-label="Close">×</button></div><label>ACTIVITY<select name="type"><option>Incline walk</option><option>Running</option><option>Cycling</option><option>Rowing</option><option>Stairmaster</option><option>Sports</option><option>Other</option></select></label><div class="form-grid two"><label>DURATION <small>MIN</small><input name="duration" type="number" min="1" step="1" inputmode="numeric" required placeholder="30"></label><label>CALORIES BURNED <small>KCAL</small><input name="calories" type="number" min="0" step="1" inputmode="numeric" required placeholder="200"></label></div><p class="form-error" id="cardio-error" role="alert"></p><button class="submit-button cardio-submit" type="submit">SAVE CARDIO ENTRY <span>→</span></button></form></dialog>
+
+  <dialog id="settings-dialog" class="panel-dialog settings-dialog"><div class="dialog-heading"><div><span class="eyebrow">CONFIGURATION / 01</span><h2>TARGETS</h2></div><button class="close-button" type="button" data-close="settings-dialog" aria-label="Close">×</button></div><p class="settings-intro">Targets are saved separately for each mode. Daily logs stay on their dates.</p><div class="settings-mode" role="group" aria-label="Mode to edit"><button type="button" data-settings-mode="bulk">BULK</button><button type="button" data-settings-mode="cut">CUT</button><button type="button" data-settings-mode="maintain">MAINTAIN</button></div><form id="targets-form" novalidate><div class="eyebrow subheading">MANUAL TARGETS <span id="target-mode-label">/ BULK</span></div><div class="form-grid three"><label>PROTEIN <small>G</small><input name="protein" type="number" min="0" step="1" inputmode="numeric" required></label><label>CARBS <small>G</small><input name="carbs" type="number" min="0" step="1" inputmode="numeric" required></label><label>FAT <small>G</small><input name="fat" type="number" min="0" step="1" inputmode="numeric" required></label></div><div class="computed-line">TARGET CALORIES <strong id="target-calculated">0 KCAL</strong></div><p class="form-error" id="targets-error" role="alert"></p><button class="submit-button" type="submit">SAVE MODE TARGETS <span>→</span></button></form><div class="settings-separator"><span>OR CALCULATE FROM BODY DATA</span></div><form id="calculator-form" novalidate><div class="form-grid two"><label>WEIGHT<input name="weight" type="number" min="1" step="0.1" inputmode="decimal" required placeholder="75"></label><label>HEIGHT<input name="height" type="number" min="1" step="0.1" inputmode="decimal" required placeholder="175"></label></div><div class="form-grid two"><label>WEIGHT UNIT<select name="weightUnit"><option value="kg">KG</option><option value="lb">LB</option></select></label><label>HEIGHT UNIT<select name="heightUnit"><option value="cm">CM</option><option value="in">IN</option></select></label></div><div class="form-grid two"><label>AGE<input name="age" type="number" min="18" max="120" step="1" inputmode="numeric" required placeholder="30"></label><label>FORMULA SEX<select name="sex"><option value="male">MALE (+5)</option><option value="female">FEMALE (−161)</option></select></label></div><label>ACTIVITY LEVEL<select name="activity"><option value="1.2">SEDENTARY · LITTLE EXERCISE</option><option value="1.375">LIGHT · 1–3 DAYS/WEEK</option><option value="1.55">MODERATE · 3–5 DAYS/WEEK</option><option value="1.725">HIGH · 6–7 DAYS/WEEK</option><option value="1.9">VERY HIGH · PHYSICAL JOB + TRAINING</option></select></label><p class="calculator-note">Mifflin–St Jeor estimate. Bulk +300 kcal; cut −400 kcal. Protein: 1.8 g/kg (2.2 cutting); fat: 0.8 g/kg; carbs fill the rest. Applies to all three modes.</p><p class="form-error" id="calculator-error" role="alert"></p><button class="submit-button secondary-submit" type="submit">CALCULATE ALL MODES <span>→</span></button></form></dialog>
+</body>
+</html>
