@@ -68,6 +68,7 @@
   let settingsMode = data.lastMode in modeNames ? data.lastMode : 'maintain';
   let statsPeriod = 'month';
   let quickRequest = null;
+  let cardioMethod = 'estimate';
 
   function themeColor() { return (themes[data.theme] || themes.teal)[data.surface === 'white' ? 'light' : 'dark']; }
   function macroColor(key) { return getComputedStyle(document.documentElement).getPropertyValue(`--${key}`).trim(); }
@@ -209,9 +210,9 @@
     });
     $('#mode-note').textContent = `${modeNotes[s.mode]}${data.configuredModes[s.mode] ? '' : ' · SET TARGETS'}`;
     $('#target-status').textContent = data.configuredModes[s.mode] ? 'GRAMS / DAY' : 'SET MACROS IN SETTINGS';
-    $('#setup-mode').textContent = modeNames[s.mode];
+    $('#setup-mode').textContent = modeNames[settingsMode];
     if (document.activeElement !== $('#setup-weight')) $('#setup-weight').value = Number(data.profile?.weight) || 0;
-    if (document.activeElement !== $('#setup-calories')) $('#setup-calories').value = s.base;
+    if (document.activeElement !== $('#setup-calories')) $('#setup-calories').value = calorieBase(settingsMode);
     if (document.activeElement !== $('#setup-weight-unit')) $('#setup-weight-unit').value = data.profile?.weightUnit === 'lb' ? 'lb' : 'kg';
     $('#calories-eaten').textContent = fmt(s.eaten.calories);
     $('#calorie-budget').innerHTML = `${fmt(s.budget)} <span>KCAL</span>`;
@@ -222,7 +223,7 @@
     $('#calories-remaining').innerHTML = `${fmt(s.budget > 0 ? Math.abs(s.remaining) : 0)} <span>KCAL</span>`;
     $('#calories-remaining').classList.toggle('over', over);
     const pct = s.budget > 0 ? Math.round(s.eaten.calories / s.budget * 100) : 0;
-    $('#calorie-percent').textContent = s.budget > 0 ? `${pct}% OF BUDGET USED` : 'ENTER A CALORIE GOAL ABOVE';
+    $('#calorie-percent').textContent = s.budget > 0 ? `${pct}% OF BUDGET USED` : 'SET A CALORIE GOAL IN SETTINGS';
     $('#calorie-ring').style.background = `conic-gradient(${over ? macroColor('danger') : themeColor()} ${Math.min(100, pct)}%, ${macroColor('ring-track')} ${Math.min(100, pct)}%)`;
 
     $('#macro-list').innerHTML = ['protein', 'carbs', 'fat'].map(key => {
@@ -235,7 +236,7 @@
     }).join('');
 
     $('#food-list').innerHTML = s.record.food.length ? s.record.food.map(entry => `<div class="entry-row"><div class="entry-icon" aria-hidden="true">＋</div><div class="entry-main"><div class="entry-name" title="${escapeHtml(entry.name)}">${escapeHtml(entry.name)}</div><div class="entry-meta">P ${fmt(entry.protein)} · C ${fmt(entry.carbs)} · F ${fmt(entry.fat)}${entry.source === 'quick' ? ' · QUICK LOG' : entry.overridden ? ' · MANUAL KCAL' : ''}</div></div><div class="entry-calories">${fmt(entry.calories)} <small>KCAL</small></div><button class="remove-button" type="button" data-remove-food="${escapeHtml(entry.id)}" aria-label="Remove ${escapeHtml(entry.name)}">×</button></div>`).join('') : '<div class="empty-state">NO FOOD LOGGED FOR THIS DAY.</div>';
-    $('#cardio-list').innerHTML = s.record.cardio.length ? s.record.cardio.map(entry => `<div class="entry-row"><div class="entry-icon" aria-hidden="true">↗</div><div class="entry-main"><div class="entry-name">${escapeHtml(entry.type)}</div><div class="entry-meta">${fmt(entry.duration)} MINUTES</div></div><div class="entry-calories">+${fmt(entry.calories)} <small>KCAL</small></div><button class="remove-button" type="button" data-remove-cardio="${escapeHtml(entry.id)}" aria-label="Remove ${escapeHtml(entry.type)}">×</button></div>`).join('') : '<div class="empty-state">NO CARDIO LOGGED FOR THIS DAY.</div>';
+    $('#cardio-list').innerHTML = s.record.cardio.length ? s.record.cardio.map(entry => `<div class="entry-row"><div class="entry-icon" aria-hidden="true">↗</div><div class="entry-main"><div class="entry-name">${escapeHtml(entry.type)}${entry.intensity === 'fast' ? ' · FAST' : ''}</div><div class="entry-meta">${fmt(entry.duration)} MINUTES</div></div><div class="entry-calories">+${fmt(entry.calories)} <small>KCAL</small></div><button class="remove-button" type="button" data-remove-cardio="${escapeHtml(entry.id)}" aria-label="Remove ${escapeHtml(entry.type)}">×</button></div>`).join('') : '<div class="empty-state">NO CARDIO LOGGED FOR THIS DAY.</div>';
     renderWater(s.record);
     renderStatistics();
   }
@@ -322,10 +323,14 @@
 
   function addCardio(input) {
     const types = ['Incline walk', 'Running', 'Cycling', 'Rowing', 'Stairmaster', 'Sports', 'Other'];
-    const type = String(input.type || '');
-    const duration = number(input.duration), calories = number(input.calories);
+    const selectedType = String(input.type || '');
+    const type = selectedType === 'Running fast' ? 'Running' : selectedType;
+    const intensity = selectedType === 'Running fast' || (input.intensity === 'fast' && type === 'Running') ? 'fast' : 'moderate';
+    const duration = number(input.duration);
+    const automatic = input.calories === '' || input.calories === null || input.calories === undefined;
+    const calories = automatic ? window.SignalCardioEstimator.estimate({ type, duration, intensity, weight: data.profile?.weight, weightUnit: data.profile?.weightUnit })?.calories : number(input.calories);
     if (!types.includes(type) || !Number.isInteger(duration) || duration < 1 || !Number.isInteger(calories) || calories < 0) throw new Error('Enter a valid activity, duration, and calories burned.');
-    const entry = { id: uid(), type, duration, calories };
+    const entry = { id: uid(), type, duration, calories, ...(intensity === 'fast' ? { intensity: 'fast' } : {}) };
     day(true).cardio.push(entry);
     save(); render();
     return entry;
@@ -488,6 +493,8 @@
       button.setAttribute('aria-pressed', String(active));
     });
     $('#target-mode-label').textContent = `/ ${modeNames[mode]}`;
+    $('#setup-mode').textContent = modeNames[mode];
+    $('#setup-calories').value = calorieBase(mode);
     const form = $('#targets-form');
     for (const key of ['protein', 'carbs', 'fat']) form.elements[key].value = data.targets[mode][key];
     $('#targets-error').textContent = '';
@@ -540,10 +547,37 @@
     if (!Number.isFinite(weight) || weight < 0 || weight > 1000 || !['kg', 'lb'].includes(weightUnit)) throw new Error('Enter a valid weight, or 0 to leave it unset.');
     if (!Number.isFinite(calories) || !Number.isInteger(calories) || calories < 0 || calories > 20000) throw new Error('Enter a valid calorie goal, or 0 to leave it unset.');
     data.profile = { ...(data.profile || {}), weight, weightUnit };
-    data.calorieTargets[currentMode()] = calories;
+    data.calorieTargets[settingsMode] = calories;
     $('#calculator-form').elements.weight.value = weight || '';
     $('#calculator-form').elements.weightUnit.value = weightUnit;
     save(); render();
+  }
+
+  function currentCardioEstimate() {
+    const selectedType = $('#cardio-type').value;
+    return window.SignalCardioEstimator.estimate({ type: selectedType === 'Running fast' ? 'Running' : selectedType, duration: $('#cardio-duration').value, intensity: selectedType === 'Running fast' ? 'fast' : 'moderate', weight: data.profile?.weight, weightUnit: data.profile?.weightUnit });
+  }
+
+  function setCardioMethod(method) {
+    cardioMethod = method;
+    $('#cardio-auto-tab').setAttribute('aria-pressed', String(method === 'estimate'));
+    $('#cardio-manual-tab').setAttribute('aria-pressed', String(method === 'manual'));
+    $('#cardio-calories-field').hidden = method !== 'manual';
+    $('#cardio-error').textContent = '';
+    if (method === 'estimate') updateCardioEstimate();
+    else {
+      if ($('#cardio-calories').value === '') $('#cardio-calories').value = currentCardioEstimate()?.calories ?? '';
+      $('#cardio-preview').hidden = true;
+    }
+  }
+
+  function updateCardioEstimate() {
+    if (cardioMethod !== 'estimate') return;
+    const result = currentCardioEstimate();
+    $('#cardio-preview').hidden = !result;
+    if (!result) return;
+    $('#cardio-estimate-detail').textContent = result.usedFallback ? 'ESTIMATE · USING 70 KG UNTIL WEIGHT IS SET IN SETTINGS' : 'ESTIMATED CALORIES BURNED';
+    $('#cardio-estimate-total').textContent = `${fmt(result.calories)} KCAL`;
   }
 
   $('#prev-day').addEventListener('click', () => { const d = fromIso(selectedDate); d.setDate(d.getDate() - 1); selectedDate = isoDate(d); render(); });
@@ -564,7 +598,13 @@
   $$('[data-surface]').forEach(button => button.addEventListener('click', () => setSurface(button.dataset.surface)));
   $('#settings-open').addEventListener('click', () => { loadSettingsMode(currentMode()); showDialog('settings-dialog'); });
   $('#add-food').addEventListener('click', () => { resetQuickLog(); showDialog('food-dialog'); });
-  $('#add-cardio').addEventListener('click', () => { $('#cardio-form').reset(); $('#cardio-error').textContent = ''; showDialog('cardio-dialog'); });
+  $('#add-cardio').addEventListener('click', () => { $('#cardio-form').reset(); $('#cardio-error').textContent = ''; $('#cardio-preview').hidden = true; setCardioMethod('estimate'); showDialog('cardio-dialog'); });
+  $('#cardio-auto-tab').addEventListener('click', () => setCardioMethod('estimate'));
+  $('#cardio-manual-tab').addEventListener('click', () => setCardioMethod('manual'));
+  for (const id of ['cardio-type', 'cardio-duration']) {
+    $(`#${id}`).addEventListener('input', () => { if (cardioMethod === 'estimate') $('#cardio-calories').value = ''; updateCardioEstimate(); });
+    $(`#${id}`).addEventListener('change', () => { if (cardioMethod === 'estimate') $('#cardio-calories').value = ''; updateCardioEstimate(); });
+  }
   $$('[data-close]').forEach(button => button.addEventListener('click', () => document.getElementById(button.dataset.close).close()));
   $$('.panel-dialog').forEach(dialog => dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); }));
   $('#food-form').addEventListener('input', updateCalculatedFood);
@@ -603,7 +643,16 @@
   });
   $('#cardio-form').addEventListener('submit', event => {
     event.preventDefault();
-    try { addCardio(Object.fromEntries(new FormData(event.currentTarget))); $('#cardio-dialog').close(); }
+    try {
+      const values = Object.fromEntries(new FormData(event.currentTarget));
+      if (cardioMethod === 'estimate') {
+        const result = currentCardioEstimate();
+        if (!result) throw new Error('Select an activity and enter a duration to estimate calories.');
+        values.calories = result.calories;
+      } else if (values.calories === '') throw new Error('Enter calories burned.');
+      addCardio(values);
+      $('#cardio-dialog').close();
+    }
     catch (error) { $('#cardio-error').textContent = error.message; }
   });
   $$('[data-water-quick]').forEach(button => button.addEventListener('click', () => {
@@ -655,7 +704,7 @@
     tool('signal_get_day', 'Read Signal day', 'Read the currently displayed date, mode, calorie budget, macros, and entries.', {}, [], () => ({ date: selectedDate, ...summary() }), true);
     tool('signal_get_statistics', 'Read Signal statistics', 'Read monthly or three-month trends from locally saved daily logs.', { period: { type: 'string', enum: ['month', 'threeMonths'] } }, ['period'], input => window.SignalStats.summarize(data, input.period, new Date()), true);
     tool('signal_add_food', 'Add food to Signal', 'Log food on the currently displayed date and update the visible daily totals.', { name: { type: 'string' }, protein: { type: 'number', minimum: 0 }, carbs: { type: 'number', minimum: 0 }, fat: { type: 'number', minimum: 0 }, calories: { type: 'number', minimum: 0 } }, ['name', 'protein', 'carbs', 'fat'], input => ({ date: selectedDate, entry: addFood(input), totals: summary().eaten }));
-    tool('signal_add_cardio', 'Add cardio to Signal', 'Log cardio on the currently displayed date and increase its calorie budget.', { type: { type: 'string', enum: ['Incline walk', 'Running', 'Cycling', 'Rowing', 'Stairmaster', 'Sports', 'Other'] }, duration: { type: 'integer', minimum: 1 }, calories: { type: 'integer', minimum: 0 } }, ['type', 'duration', 'calories'], input => ({ date: selectedDate, entry: addCardio(input), budget: summary().budget }));
+    tool('signal_add_cardio', 'Add cardio to Signal', 'Log cardio on the currently displayed date. Calories default to a MET estimate using saved body weight.', { type: { type: 'string', enum: ['Incline walk', 'Running', 'Running fast', 'Cycling', 'Rowing', 'Stairmaster', 'Sports', 'Other'] }, duration: { type: 'integer', minimum: 1 }, intensity: { type: 'string', enum: ['moderate', 'fast'] }, calories: { type: 'integer', minimum: 0 } }, ['type', 'duration'], input => ({ date: selectedDate, entry: addCardio(input), budget: summary().budget }));
   }
 
   applyTheme();

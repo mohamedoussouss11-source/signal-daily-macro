@@ -1,0 +1,6 @@
+.cardio-tabs{display:flex;gap:4px;border:1px solid var(--line);padding:4px;margin:-5px 0 18px;background:var(--surface)}
+.cardio-tabs button{flex:1;border:0;background:transparent;color:var(--muted);padding:10px;font:12px var(--mono);letter-spacing:.06em}
+.cardio-tabs button[aria-pressed="true"]{background:var(--acid);color:var(--accent-ink,#10180c)}
+.cardio-preview{border:1px solid var(--line);padding:12px;margin:0 0 17px;display:flex;justify-content:space-between;gap:12px;align-items:center;font:11px/1.4 var(--mono);color:var(--muted)}
+.cardio-preview strong{color:var(--cardio);font:600 19px var(--sans);white-space:nowrap}
+.cardio-preview[hidden],.panel-dialog form>#cardio-calories-field[hidden]{display:none}
